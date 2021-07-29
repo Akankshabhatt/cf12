@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: "2010-09-09"
+ 
+
+Parameters:
+
+  ec2AMI:
+    Type: String
+    Description: custom AMI for web server 
+    Default: ami-0233c2d874b811deb
+  
+  ec2InstanceType:
+    Type: String
+    Description: Instance type
+    Default: t2.micro
+  
+  CIDRforVPC:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: Enter the CIDR for VPC   
+
+  CIDRforSubnet:
+    Type: String
+    Default: 10.0.1.0/24
+    Description: Enter the CIDR for Subnet
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref CIDRforVPC
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: VPC CF
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: Igw CF
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref VPC
+      CidrBlock: !Ref CIDRforSubnet
+      AvailabilityZone: !Select   [  0,  !GetAZs  ]
+      Tags:
+        - Key: Name
+          Value: mySubnet
+
+  myRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: RT
+
+  InternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGateway
+    Properties:
+      RouteTableId:
+        Ref: myRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: InternetGateway        
+
+  mySubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetA
+      RouteTableId: !Ref myRouteTable
+
+  Ec2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref ec2AMI
+      SubnetId: !Ref SubnetA
+      InstanceType: !Ref ec2InstanceType
+      Tags:
+      - Key: Name
+        Value: EC2InstanceAB
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Security Group For New VPC 
+        VpcId:
+          Ref: VPC
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+        Tags:
+        - Key: Name
+          Value: SGfromCF
+
+Outputs:
+
+  PublicIpOfEc2:
+    Description: Public Ip of the Ec2 Instance
+    Value: !GetAtt Ec2Instance.PublicIp
+
+  PublicDNSOfEc2:
+    Description: Public DNS of Ec2 Instance
+    Value: !GetAtt Ec2Instance.PublicDnsName
+
+  InstanceIdOfEc2:
+    Description: Instance ID of Ec2 Instance
+    Value: !Ref Ec2Instance    
+
+   AZ:
+    Description: Availability Zone of the newly created EC2 instance
+    Value: !GetAtt Ec2Instance.AvailabilityZone
